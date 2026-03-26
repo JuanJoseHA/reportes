@@ -18,9 +18,11 @@ import itch.twp.reportes.dto.IncidenciaDTO;
 import itch.twp.reportes.dto.ReporteItemDto;
 import itch.twp.reportes.servicio.ReporteServicio;
 import lombok.AllArgsConstructor;
+import lombok.RequiredArgsConstructor;
 
 @Service
-@AllArgsConstructor 
+@AllArgsConstructor
+@RequiredArgsConstructor
 public class ReporteServicioImp implements ReporteServicio {
 
     private IncidenciaClient incidenciaClient;
