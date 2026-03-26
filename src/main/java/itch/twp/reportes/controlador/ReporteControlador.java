@@ -35,7 +35,6 @@ public class ReporteControlador {
         return construirRespuestaPdf(pdfBytes, "reporte-eficiencia-transparencia.pdf");
     }
 
-    // Método auxiliar para no repetir la configuración de cabeceras de Spring HTTP
     private ResponseEntity<byte[]> construirRespuestaPdf(byte[] pdfBytes, String nombreArchivo) {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_PDF);

@@ -1,6 +1,13 @@
 package itch.twp.reportes.dto;
 
-public interface ReporteItemDto {
-    String getNombre();
-    Integer getCantidad();
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@AllArgsConstructor
+@NoArgsConstructor
+public class ReporteItemDto {
+    private String nombre;
+    private Integer cantidad;
 }
