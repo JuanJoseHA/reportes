@@ -1,7 +1,5 @@
 package itch.twp.reportes.controlador;
 
-import itch.twp.reportes.servicio.ReporteServicio;
-import lombok.AllArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -9,6 +7,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import itch.twp.reportes.client.FeignClientInterceptor;
+import itch.twp.reportes.servicio.ReporteServicio;
+import lombok.AllArgsConstructor;
 
 @RestController
 @AllArgsConstructor
@@ -34,6 +36,47 @@ public class ReporteControlador {
         byte[] pdfBytes = reporteServicio.generarReporteEstatusYPromedioPdf();
         return construirRespuestaPdf(pdfBytes, "reporte-eficiencia-transparencia.pdf");
     }
+    
+    @GetMapping("/departamentos/descargar-pdf")
+    public ResponseEntity<byte[]> descargarDepartamentosPdf() {
+        byte[] pdfBytes = reporteServicio.generarReporteDepartamentosPdf();
+        return construirRespuestaPdf(pdfBytes, "reporte-departamentos.pdf");
+    }
+    
+    @GetMapping("/personal/descargar-pdf")
+    public ResponseEntity<byte[]> descargarPersonalPdf() {
+        byte[] pdfBytes = reporteServicio.generarReportePersonalPdf();
+        return construirRespuestaPdf(pdfBytes, "reporte-personal.pdf");
+    }
+    
+    @GetMapping("/usuarios/descargar-pdf")
+    public ResponseEntity<byte[]> descargarUsuariosPdf() {
+        byte[] pdfBytes = reporteServicio.generarReporteUsuariosPdf();
+        return construirRespuestaPdf(pdfBytes, "reporte-usuarios.pdf");
+    }
+    
+    @GetMapping("/clima/descargar-pdf")
+    public ResponseEntity<byte[]> descargarClimaPdf() {
+        byte[] pdfBytes = reporteServicio.generarReporteClimaPdf();
+        return construirRespuestaPdf(pdfBytes, "reporte-clima.pdf");
+    }
+
+    @GetMapping("/test-pdf-layout")
+    public ResponseEntity<byte[]> testPdfLayout() {
+        return construirRespuestaPdf(reporteServicio.generarPdfPrueba(), "test-layout.pdf");
+    }
+
+    @GetMapping("/diagnostico")
+    public ResponseEntity<String> diagnosticoIncidencias() {
+        try {
+            reporteServicio.generarReporteColoniasPdf();
+            return ResponseEntity.ok("Diagnóstico completado.");
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("Error: " + e.getMessage());
+        }
+    }
+
+
 
     private ResponseEntity<byte[]> construirRespuestaPdf(byte[] pdfBytes, String nombreArchivo) {
         HttpHeaders headers = new HttpHeaders();

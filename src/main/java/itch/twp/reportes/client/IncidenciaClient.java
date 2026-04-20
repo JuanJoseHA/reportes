@@ -5,9 +5,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import itch.twp.reportes.dto.IncidenciaDTO;
 import java.util.List;
 
-@FeignClient(name = "servicio-incidencias", url = "http://192.168.212.117:8082")
+@FeignClient(name = "incidencia-service", url = "http://192.168.212.117:8082", fallbackFactory = IncidenciaClientFallback.class)
 public interface IncidenciaClient {
-
     @GetMapping("/api/incidencias/estadisticas")
     List<IncidenciaDTO> listarParaEstadisticas();
 }

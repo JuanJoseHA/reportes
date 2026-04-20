@@ -14,17 +14,26 @@ public class IncidenciaDTO {
     private String descripcion;
     private Integer tipoId;
     private LocalDateTime fechaReporte;
-    
+
     private Integer usuarioId;
     private Integer ubicacionId;
     private Integer departamentoId;
     private Integer personalId;
-    
+
     private Boolean climaAlerta;
     private String observacionesClima;
-    
+
     private String nombreEstadoActual;
     private String calle;
     private String colonia;
     private String localidad;
+
+    private String nombrePersonal;
+    private Boolean personalDisponible;
+    private String nombreDepartamento;
+    private String descripcionDepartamento;
+
+    private String nombreTipo;
+    private String nombreUsuario;
 }
+
