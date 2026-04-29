@@ -1,28 +1,36 @@
 package itch.twp.reportes.servicio.impl;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.Collections;
+import java.util.List;
+import java.util.stream.Collectors;
+
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.stereotype.Service;
+
+import com.lowagie.text.Chunk;
 import com.lowagie.text.Document;
+import com.lowagie.text.DocumentException;
+import com.lowagie.text.Element;
 import com.lowagie.text.Font;
 import com.lowagie.text.Image;
+import com.lowagie.text.PageSize;
 import com.lowagie.text.Paragraph;
+import com.lowagie.text.Phrase;
+import com.lowagie.text.Rectangle;
+import com.lowagie.text.pdf.PdfPCell;
+import com.lowagie.text.pdf.PdfPTable;
 import com.lowagie.text.pdf.PdfWriter;
-import org.springframework.stereotype.Service;
-import org.springframework.core.io.ClassPathResource;
 
 import itch.twp.reportes.client.IncidenciaClient;
 import itch.twp.reportes.dto.IncidenciaDTO;
 import itch.twp.reportes.dto.ReporteItemDto;
 import itch.twp.reportes.servicio.ReporteServicio;
 import lombok.RequiredArgsConstructor;
-
-import java.io.ByteArrayOutputStream;
-import java.io.InputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.util.List;
-import java.util.Collections;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor 
@@ -34,47 +42,85 @@ public class ReporteServicioImp implements ReporteServicio {
     private final Font subtituloFont = new Font(Font.HELVETICA, 14, Font.BOLD);
     private final Font textoFont = new Font(Font.HELVETICA, 12, Font.NORMAL);
     private final Font cursivaFont = new Font(Font.HELVETICA, 12, Font.ITALIC);
+    private final Font boldFont = new Font(Font.HELVETICA, 12, Font.BOLD);
+
+    // ==========================================
+    // 1. CONFIGURACIÓN DEL ENCABEZADO (LAYOUT)
+    // ==========================================
+    
+    private Document iniciarDocumento(ByteArrayOutputStream baos, String tituloReporte) throws Exception {
+        Document document = new Document(PageSize.A4, 36, 36, 36, 36);
+        PdfWriter.getInstance(document, baos);
+        document.open();
+
+        // Tabla de encabezado (Logo - Texto - Logo)
+        PdfPTable headerTable = new PdfPTable(3);
+        headerTable.setWidthPercentage(100);
+        headerTable.setWidths(new float[]{1.2f, 3f, 1.2f});
+
+        // Logo Izquierdo (Chilpancingo)
+        headerTable.addCell(createImageCell("images/LogoChilpancingo.png", Element.ALIGN_LEFT));
+
+        // Textos Centrales
+        PdfPCell centroCell = new PdfPCell();
+        centroCell.setBorder(Rectangle.NO_BORDER);
+        centroCell.setHorizontalAlignment(Element.ALIGN_CENTER);
+        Paragraph pCentro = new Paragraph();
+        pCentro.add(new Chunk("ESTADO DE GUERRERO\n", new Font(Font.HELVETICA, 16, Font.BOLD)));
+        pCentro.add(new Chunk("Ayuntamiento de Chilpancingo", new Font(Font.HELVETICA, 12, Font.NORMAL)));
+        pCentro.setAlignment(Element.ALIGN_CENTER);
+        centroCell.addElement(pCentro);
+        headerTable.addCell(centroCell);
+
+        // Logo Derecho (Renace)
+        headerTable.addCell(createImageCell("images/LogoRenace.png", Element.ALIGN_RIGHT));
+
+        document.add(headerTable);
+        document.add(new Paragraph("\n"));
+
+        // Título del reporte y fecha
+        Paragraph pTitulo = new Paragraph(tituloReporte, tituloFont);
+        pTitulo.setAlignment(Element.ALIGN_CENTER);
+        document.add(pTitulo);
+        
+        Paragraph pFecha = new Paragraph("Generado el: " + LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")), cursivaFont);
+        pFecha.setAlignment(Element.ALIGN_RIGHT);
+        document.add(pFecha);
+        
+        document.add(new Paragraph("\n"));
+        return document;
+    }
+
+    // ==========================================
+    // 2. MÉTODOS DE GENERACIÓN DE REPORTES
+    // ==========================================
 
     @Override
     public byte[] generarReporteColoniasPdf() {
-        List<IncidenciaDTO> todas;
-        try {
-            todas = incidenciaClient.listarParaEstadisticas();
-        } catch (Exception e) {
-            todas = Collections.emptyList();
-        }
-
-        List<ReporteItemDto> datos = todas.stream()
-            .filter(i -> i.getColonia() != null && !i.getColonia().trim().isEmpty())
-            .collect(Collectors.groupingBy(IncidenciaDTO::getColonia, Collectors.counting()))
-            .entrySet().stream()
-            .map(e -> new ReporteItemDto(e.getKey(), e.getValue().intValue()))
-            .sorted((a, b) -> b.getCantidad().compareTo(a.getCantidad()))
-            .collect(Collectors.toList());
-
-        if (datos.isEmpty()) {
-            datos = todas.stream()
-                .filter(i -> i.getLocalidad() != null && !i.getLocalidad().trim().isEmpty())
-                .collect(Collectors.groupingBy(IncidenciaDTO::getLocalidad, Collectors.counting()))
-                .entrySet().stream()
-                .map(e -> new ReporteItemDto(e.getKey(), e.getValue().intValue()))
-                .sorted((a, b) -> b.getCantidad().compareTo(a.getCantidad()))
-                .collect(Collectors.toList());
-        }
-
+        List<IncidenciaDTO> todas = obtenerIncidenciasSafely();
+        
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-            Document document = iniciarDocumento(baos, "Análisis Geográfico de Incidencias");
+            Document document = iniciarDocumento(baos, "Análisis de Situación por Colonia");
+            document.add(new Paragraph("Distribución geográfica de reportes ciudadanos y su estado de atención.\n", textoFont));
             
-            document.add(new Paragraph("Distribución geográfica de reportes ciudadanos.", textoFont));
-            
-            // Insertar gráfico si existe
             insertarGrafico(document, "colonias.png");
             
-            if (datos.isEmpty()) {
-                document.add(new Paragraph("No hay datos disponibles.", textoFont));
+            if (todas.isEmpty()) {
+                document.add(new Paragraph("No hay incidencias registradas para el análisis.", textoFont));
             } else {
-                imprimirLista(document, "Desglose por Colonia:", datos);
+                for (IncidenciaDTO i : todas) {
+                    String colonia = (i.getColonia() != null) ? i.getColonia() : (i.getLocalidad() != null ? i.getLocalidad() : "Ubicación no especificada");
+                    
+                    // Se usa getTitulo y getNombreTipo en lugar de getNombre y getNombrePrioridad
+                    String asunto = (i.getTitulo() != null) ? i.getTitulo() : i.getNombreTipo();
+                    
+                    agregarBloqueDialogo(document, 
+                        "Ciudadano (Zona: " + colonia + ")", 
+                        "Se reporta: " + asunto + ".",
+                        "Sistema: Reporte canalizado bajo el estatus [" + i.getNombreEstadoActual() + "]. " + (i.getDescripcion() != null ? "Nota: " + i.getDescripcion() : ""));
+                }
             }
+            
             document.close();
             return baos.toByteArray();
         } catch (Exception e) {
@@ -84,42 +130,24 @@ public class ReporteServicioImp implements ReporteServicio {
 
     @Override
     public byte[] generarReporteTiposIncidenciaPdf() {
-        List<IncidenciaDTO> todas;
-        try {
-            todas = incidenciaClient.listarParaEstadisticas();
-        } catch (Exception e) {
-            todas = Collections.emptyList();
-        }
+        List<IncidenciaDTO> todas = obtenerIncidenciasSafely();
         
-        // Agrupar por tipoId
-        List<ReporteItemDto> datos = todas.stream()
-            .filter(i -> i.getTipoId() != null)
-            .collect(Collectors.groupingBy(
-                i -> i.getNombreTipo() != null ? i.getNombreTipo() : "Tipo #" + i.getTipoId(),
-                Collectors.counting()))
-            .entrySet().stream()
-            .map(e -> new ReporteItemDto(e.getKey(), e.getValue().intValue()))
-            .sorted((a, b) -> b.getCantidad().compareTo(a.getCantidad()))
-            .collect(Collectors.toList());
-
-        // Calcular total
-        int total = datos.stream().mapToInt(ReporteItemDto::getCantidad).sum();
-
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-            Document document = iniciarDocumento(baos, "Reporte de Tipos de Incidencias");
+            Document document = iniciarDocumento(baos, "Clasificación de Reportes Ciudadanos");
+            document.add(new Paragraph("Resumen Narrativo de Tipos de Incidencias:\n", subtituloFont));
             
-            document.add(new Paragraph("Resumen por tipo de reporte ciudadano.", textoFont));
-            document.add(new Paragraph("Total de incidencias: " + total, cursivaFont));
-            document.add(new Paragraph("\n"));
-            
-            // Insertar gráfico
             insertarGrafico(document, "tipos.png");
             
-            if (datos.isEmpty()) {
-                document.add(new Paragraph("No hay datos disponibles.", textoFont));
-            } else {
-                imprimirLista(document, "Desglose por Tipo:", datos);
-            }
+            todas.stream()
+                .collect(Collectors.groupingBy(i -> i.getNombreTipo() != null ? i.getNombreTipo() : "Tipo General"))
+                .forEach((tipo, lista) -> {
+                    try {
+                        document.add(new Paragraph("Sobre los reportes clasificados como '" + tipo + "':", boldFont));
+                        document.add(new Paragraph("Se han contabilizado un total de " + lista.size() + " casos. El sistema los ha registrado y canalizado a las áreas correspondientes para su pronta atención.", textoFont));
+                        document.add(new Paragraph("\n"));
+                    } catch (DocumentException e) { e.printStackTrace(); }
+                });
+
             document.close();
             return baos.toByteArray();
         } catch (Exception e) {
@@ -129,44 +157,29 @@ public class ReporteServicioImp implements ReporteServicio {
 
     @Override
     public byte[] generarReporteEstatusYPromedioPdf() {
-        List<IncidenciaDTO> todas;
-        try {
-            todas = incidenciaClient.listarParaEstadisticas();
-        } catch (Exception e) {
-            todas = Collections.emptyList();
-        }
+        List<IncidenciaDTO> todas = obtenerIncidenciasSafely();
         
-        List<ReporteItemDto> datos = todas.stream()
-            .filter(i -> i.getNombreEstadoActual() != null)
-            .collect(Collectors.groupingBy(IncidenciaDTO::getNombreEstadoActual, Collectors.counting()))
-            .entrySet().stream()
-            .map(e -> new ReporteItemDto(e.getKey(), e.getValue().intValue()))
-            .sorted((a, b) -> b.getCantidad().compareTo(a.getCantidad()))
-            .collect(Collectors.toList());
-        
-        // Calcular total
-        int total = datos.stream().mapToInt(ReporteItemDto::getCantidad).sum();
-
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-            Document document = iniciarDocumento(baos, "Reporte de Estados y Eficiencia");
+            Document document = iniciarDocumento(baos, "Reporte de Eficiencia y Estatus");
+            document.add(new Paragraph("Estado actual del seguimiento de atención ciudadana.\n", textoFont));
             
-            document.add(new Paragraph("Estado actual de todos los reportes.", textoFont));
-            document.add(new Paragraph("Total de incidencias: " + total, cursivaFont));
-            document.add(new Paragraph("\n"));
-            
-            // Insertar gráfico
             insertarGrafico(document, "estatus.png");
             
-            if (datos.isEmpty()) {
-                document.add(new Paragraph("No hay datos disponibles.", textoFont));
-            } else {
-                imprimirLista(document, "Estado de Reportes:", datos);
-                
-                for (ReporteItemDto item : datos) {
-                    double porcentaje = (item.getCantidad() * 100.0) / total;
-                    document.add(new Paragraph(String.format("   %s: %.1f%%", item.getNombre(), porcentaje), cursivaFont));
-                }
-            }
+            int total = todas.size();
+            document.add(new Paragraph("Se han procesado un total de " + total + " incidencias en el sistema.", boldFont));
+            document.add(new Paragraph("\n"));
+
+            todas.stream()
+                .collect(Collectors.groupingBy(i -> i.getNombreEstadoActual() != null ? i.getNombreEstadoActual() : "Estado Desconocido"))
+                .forEach((estado, lista) -> {
+                    try {
+                        double porcentaje = (lista.size() * 100.0) / (total == 0 ? 1 : total);
+                        document.add(new Paragraph("Estatus: [" + estado.toUpperCase() + "] - Representa el " + String.format("%.1f%%", porcentaje) + " del total.", boldFont));
+                        document.add(new Paragraph("Actualmente hay " + lista.size() + " reportes en esta fase de atención.", textoFont));
+                        document.add(new Paragraph("\n"));
+                    } catch (DocumentException e) { e.printStackTrace(); }
+                });
+
             document.close();
             return baos.toByteArray();
         } catch (Exception e) {
@@ -174,38 +187,26 @@ public class ReporteServicioImp implements ReporteServicio {
         }
     }
     
+    @Override
     public byte[] generarReporteDepartamentosPdf() {
-        List<IncidenciaDTO> todas;
-        try {
-            todas = incidenciaClient.listarParaEstadisticas();
-        } catch (Exception e) {
-            todas = Collections.emptyList();
-        }
+        List<IncidenciaDTO> todas = obtenerIncidenciasSafely();
         
-        List<ReporteItemDto> datos = todas.stream()
-            .filter(i -> i.getDepartamentoId() != null)
-            .collect(Collectors.groupingBy(
-                i -> i.getNombreDepartamento() != null ? i.getNombreDepartamento() : "Depto #" + i.getDepartamentoId(),
-                Collectors.counting()))
-            .entrySet().stream()
-            .map(e -> new ReporteItemDto(e.getKey(), e.getValue().intValue()))
-            .sorted((a, b) -> b.getCantidad().compareTo(a.getCantidad()))
-            .collect(Collectors.toList());
-        
-        int total = datos.stream().mapToInt(ReporteItemDto::getCantidad).sum();
-
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-            Document document = iniciarDocumento(baos, "Reporte por Departamento");
+            Document document = iniciarDocumento(baos, "Distribución por Departamento");
+            document.add(new Paragraph("Carga de trabajo y canalización institucional.\n", textoFont));
             
-            document.add(new Paragraph("Distribución de incidencias por departamento.", textoFont));
-            document.add(new Paragraph("Total: " + total + " incidencias", cursivaFont));
-            document.add(new Paragraph("\n"));
-            
-            if (datos.isEmpty()) {
-                document.add(new Paragraph("No hay datos disponibles.", textoFont));
-            } else {
-                imprimirLista(document, "Incidencias por Departamento:", datos);
-            }
+            todas.stream()
+                .filter(i -> i.getDepartamentoId() != null)
+                .collect(Collectors.groupingBy(i -> i.getNombreDepartamento() != null ? i.getNombreDepartamento() : "Departamento #" + i.getDepartamentoId()))
+                .forEach((depto, lista) -> {
+                    try {
+                        agregarBloqueDialogo(document, 
+                            "Auditoría del Sistema", 
+                            "Se ha verificado la carga operativa para el departamento de " + depto + ".",
+                            "Respuesta Institucional: Tienen asignadas " + lista.size() + " incidencias para su resolución y seguimiento.");
+                    } catch (DocumentException e) { e.printStackTrace(); }
+                });
+
             document.close();
             return baos.toByteArray();
         } catch (Exception e) {
@@ -213,38 +214,26 @@ public class ReporteServicioImp implements ReporteServicio {
         }
     }
     
+    @Override
     public byte[] generarReportePersonalPdf() {
-        List<IncidenciaDTO> todas;
-        try {
-            todas = incidenciaClient.listarParaEstadisticas();
-        } catch (Exception e) {
-            todas = Collections.emptyList();
-        }
+        List<IncidenciaDTO> todas = obtenerIncidenciasSafely();
         
-        List<ReporteItemDto> datos = todas.stream()
-            .filter(i -> i.getPersonalId() != null)
-            .collect(Collectors.groupingBy(
-                i -> i.getNombrePersonal() != null ? i.getNombrePersonal() : "Personal #" + i.getPersonalId(),
-                Collectors.counting()))
-            .entrySet().stream()
-            .map(e -> new ReporteItemDto(e.getKey(), e.getValue().intValue()))
-            .sorted((a, b) -> b.getCantidad().compareTo(a.getCantidad()))
-            .collect(Collectors.toList());
-        
-        int total = datos.stream().mapToInt(ReporteItemDto::getCantidad).sum();
-
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-            Document document = iniciarDocumento(baos, "Reporte de Personal");
+            Document document = iniciarDocumento(baos, "Desempeño del Personal Operativo");
+            document.add(new Paragraph("Registro de atención brindada por el personal del Ayuntamiento.\n", textoFont));
             
-            document.add(new Paragraph("Incidencias atendidas por cada miembro del personal.", textoFont));
-            document.add(new Paragraph("Total atendidas: " + total, cursivaFont));
-            document.add(new Paragraph("\n"));
-            
-            if (datos.isEmpty()) {
-                document.add(new Paragraph("No hay datos disponibles.", textoFont));
-            } else {
-                imprimirLista(document, "Por Personal:", datos);
-            }
+            todas.stream()
+                .filter(i -> i.getPersonalId() != null)
+                .collect(Collectors.groupingBy(i -> i.getNombrePersonal() != null ? i.getNombrePersonal() : "Personal #" + i.getPersonalId()))
+                .forEach((personal, lista) -> {
+                    try {
+                        agregarBloqueDialogo(document, 
+                            "Registro Operativo", 
+                            "El servidor público " + personal + " ha estado activo en el sistema.",
+                            "Métricas: Ha intervenido en la gestión de " + lista.size() + " reportes ciudadanos.");
+                    } catch (DocumentException e) { e.printStackTrace(); }
+                });
+
             document.close();
             return baos.toByteArray();
         } catch (Exception e) {
@@ -252,39 +241,26 @@ public class ReporteServicioImp implements ReporteServicio {
         }
     }
     
+    @Override
     public byte[] generarReporteUsuariosPdf() {
-        List<IncidenciaDTO> todas;
-        try {
-            todas = incidenciaClient.listarParaEstadisticas();
-        } catch (Exception e) {
-            todas = Collections.emptyList();
-        }
+        List<IncidenciaDTO> todas = obtenerIncidenciasSafely();
         
-        List<ReporteItemDto> datos = todas.stream()
-            .filter(i -> i.getUsuarioId() != null)
-            .collect(Collectors.groupingBy(
-                i -> i.getNombreUsuario() != null ? i.getNombreUsuario() : "Usuario #" + i.getUsuarioId(),
-                Collectors.counting()))
-            .entrySet().stream()
-            .map(e -> new ReporteItemDto(e.getKey(), e.getValue().intValue()))
-            .sorted((a, b) -> b.getCantidad().compareTo(a.getCantidad()))
-            .collect(Collectors.toList());
-
-        
-        int total = datos.stream().mapToInt(ReporteItemDto::getCantidad).sum();
-
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-            Document document = iniciarDocumento(baos, "Reporte de Reportadores");
+            Document document = iniciarDocumento(baos, "Participación Ciudadana");
+            document.add(new Paragraph("Métricas de ciudadanos que utilizan activamente la plataforma.\n", textoFont));
             
-            document.add(new Paragraph("Ciudadanos que reportan más incidencias.", textoFont));
-            document.add(new Paragraph("Total de reportes: " + total, cursivaFont));
-            document.add(new Paragraph("\n"));
-            
-            if (datos.isEmpty()) {
-                document.add(new Paragraph("No hay datos disponibles.", textoFont));
-            } else {
-                imprimirLista(document, "Top Reportadores:", datos);
-            }
+            todas.stream()
+                .filter(i -> i.getUsuarioId() != null)
+                .collect(Collectors.groupingBy(i -> i.getNombreUsuario() != null ? i.getNombreUsuario() : "Ciudadano Anónimo"))
+                .entrySet().stream()
+                .sorted((a, b) -> Integer.compare(b.getValue().size(), a.getValue().size())) // Ordenar por los que más reportan
+                .forEach(entry -> {
+                    try {
+                        document.add(new Paragraph("El usuario " + entry.getKey() + " ha contribuido reportando " + entry.getValue().size() + " incidencias en su comunidad.", textoFont));
+                        document.add(new Paragraph("\n"));
+                    } catch (DocumentException e) { e.printStackTrace(); }
+                });
+
             document.close();
             return baos.toByteArray();
         } catch (Exception e) {
@@ -292,32 +268,27 @@ public class ReporteServicioImp implements ReporteServicio {
         }
     }
     
+    @Override
     public byte[] generarReporteClimaPdf() {
-        List<IncidenciaDTO> todas;
-        try {
-            todas = incidenciaClient.listarParaEstadisticas();
-        } catch (Exception e) {
-            todas = Collections.emptyList();
-        }
+        List<IncidenciaDTO> todas = obtenerIncidenciasSafely();
         
-        long conAlerta = todas.stream()
-            .filter(i -> Boolean.TRUE.equals(i.getClimaAlerta()))
-            .count();
-        
-        long sinAlerta = todas.stream()
-            .filter(i -> i.getClimaAlerta() == null || !i.getClimaAlerta())
-            .count();
+        long conAlerta = todas.stream().filter(i -> Boolean.TRUE.equals(i.getClimaAlerta())).count();
+        long sinAlerta = todas.stream().filter(i -> i.getClimaAlerta() == null || !i.getClimaAlerta()).count();
 
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-            Document document = iniciarDocumento(baos, "Reporte de Condiciones Climáticas");
+            Document document = iniciarDocumento(baos, "Impacto de Condiciones Climáticas");
+            document.add(new Paragraph("Análisis de correlación entre reportes y alertas meteorológicas en la ciudad.\n", textoFont));
             
-            document.add(new Paragraph("Incidencias reportadas bajo alertas climáticas.", textoFont));
-            document.add(new Paragraph("\n"));
-            
-            document.add(new Paragraph("Con alerta climática: " + conAlerta, subtituloFont));
-            document.add(new Paragraph("Sin alerta climática: " + sinAlerta, subtituloFont));
-            document.add(new Paragraph("Total: " + (conAlerta + sinAlerta), cursivaFont));
-            
+            agregarBloqueDialogo(document, 
+                "Centro Meteorológico", 
+                "Se detectaron condiciones climáticas adversas o alertas vigentes durante la recepción de reportes.",
+                "Sistema de Incidencias: Durante estos periodos críticos, se recibieron y procesaron " + conAlerta + " reportes ciudadanos.");
+                
+            agregarBloqueDialogo(document, 
+                "Operación Normal", 
+                "Condiciones climáticas estables sin alertas meteorológicas.",
+                "Sistema de Incidencias: En condiciones normales se han procesado " + sinAlerta + " reportes.");
+
             document.close();
             return baos.toByteArray();
         } catch (Exception e) {
@@ -325,50 +296,69 @@ public class ReporteServicioImp implements ReporteServicio {
         }
     }
 
-    private Document iniciarDocumento(ByteArrayOutputStream baos, String tituloReporte) throws Exception {
-        Document document = new Document();
-        PdfWriter writer = PdfWriter.getInstance(document, baos);
-        document.open();
-        
-        // Obtener tamaño de página para posicionar correctamente
-        float pageHeight = document.getPageSize().getHeight();
-        float pageWidth = document.getPageSize().getWidth();
-        
-        // Insertar logos directamente aquí
-        try {
-            // Logo izquierdo - probar múltiples rutas
-            InputStream logoIzqStream = getLogoStream("images/LogoChilpancingo.png");
-            if (logoIzqStream != null) {
-                byte[] logoBytes = logoIzqStream.readAllBytes();
-                Image imgIzq = Image.getInstance(logoBytes);
-                imgIzq.scaleToFit(150, 100);
-                // Posición absoluta desde abajo izquierda
-                imgIzq.setAbsolutePosition(20, pageHeight - 60);
-                document.add(imgIzq);
-            }
+    @Override
+    public byte[] generarPdfPrueba() {
+        try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+            Document document = iniciarDocumento(baos, "Documento de Prueba y Calibración");
             
-            // Logo derecho
-            InputStream logoDerStream = getLogoStream("images/LogoRenace.png");
-            if (logoDerStream != null) {
-                byte[] logoBytes = logoDerStream.readAllBytes();
-                Image imgDer = Image.getInstance(logoBytes);
-                imgDer.scaleToFit(150, 100);
-                imgDer.setAbsolutePosition(pageWidth - 120, pageHeight - 60);
-                document.add(imgDer);
-            }
+            document.add(new Paragraph("Este es un PDF de calibración para verificar que el diseño y el layout institucional funcionen correctamente en el servidor.\n", textoFont));
+            
+            agregarBloqueDialogo(document, 
+                "Usuario de Pruebas", 
+                "Solicito verificar el formato de diálogo y la carga de imágenes.",
+                "Sistema: Los componentes visuales, incluyendo el encabezado de 'Estado de Guerrero' y la lógica de renderizado, operan de forma correcta.");
+            
+            document.close();
+            return baos.toByteArray();
         } catch (Exception e) {
-            e.printStackTrace();
+            throw new RuntimeException("Error generando PDF de prueba", e);
         }
-
-        // Agregar espacio para que el contenido empiece después de los logos
-        document.add(new Paragraph("\n\n"));
-
-        document.add(new Paragraph(tituloReporte, tituloFont));
-        document.add(new Paragraph("Generado el: " + LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")), textoFont));
-        document.add(new Paragraph("\n"));
-        return document;
     }
-    
+
+    // ==========================================
+    // 3. UTILIDADES Y MÉTODOS AUXILIARES
+    // ==========================================
+
+    private void agregarBloqueDialogo(Document document, String emisor, String mensaje, String respuesta) throws DocumentException {
+        PdfPTable table = new PdfPTable(1);
+        table.setWidthPercentage(95);
+        table.setSpacingBefore(10f);
+
+        // Celda Emisor (Gris claro)
+        PdfPCell cellEmisor = new PdfPCell(new Phrase(emisor + ": " + mensaje, textoFont));
+        cellEmisor.setBackgroundColor(new java.awt.Color(245, 245, 245));
+        cellEmisor.setPadding(8);
+        cellEmisor.setBorder(Rectangle.LEFT | Rectangle.TOP | Rectangle.RIGHT);
+        table.addCell(cellEmisor);
+
+        // Celda Respuesta (Azul muy claro)
+        PdfPCell cellRespuesta = new PdfPCell(new Phrase(respuesta, cursivaFont));
+        cellRespuesta.setBackgroundColor(new java.awt.Color(230, 240, 255));
+        cellRespuesta.setPadding(8);
+        cellRespuesta.setBorder(Rectangle.LEFT | Rectangle.BOTTOM | Rectangle.RIGHT);
+        table.addCell(cellRespuesta);
+
+        document.add(table);
+    }
+
+    private PdfPCell createImageCell(String path, int alignment) {
+        try {
+            InputStream is = getLogoStream(path);
+            if (is != null) {
+                Image img = Image.getInstance(is.readAllBytes());
+                img.scaleToFit(70, 70);
+                PdfPCell cell = new PdfPCell(img);
+                cell.setBorder(Rectangle.NO_BORDER);
+                cell.setHorizontalAlignment(alignment);
+                cell.setVerticalAlignment(Element.ALIGN_MIDDLE);
+                return cell;
+            }
+        } catch (Exception e) { e.printStackTrace(); }
+        PdfPCell empty = new PdfPCell();
+        empty.setBorder(Rectangle.NO_BORDER);
+        return empty;
+    }
+
     private InputStream getLogoStream(String filename) {
         String[] paths = {
             filename,
@@ -387,10 +377,12 @@ public class ReporteServicioImp implements ReporteServicio {
         return null;
     }
 
-    private void imprimirLista(Document document, String titulo, List<ReporteItemDto> datos) throws Exception {
-        document.add(new Paragraph(titulo, subtituloFont));
-        for (ReporteItemDto item : datos) {
-            document.add(new Paragraph(" • " + item.getNombre() + " : " + item.getCantidad(), textoFont));
+    private List<IncidenciaDTO> obtenerIncidenciasSafely() {
+        try {
+            return incidenciaClient.listarParaEstadisticas();
+        } catch (Exception e) {
+            System.err.println("Advertencia: No se pudieron obtener los datos del microservicio de incidencias.");
+            return Collections.emptyList();
         }
     }
 
@@ -414,63 +406,10 @@ public class ReporteServicioImp implements ReporteServicio {
         insertarImagen(document, "static/images/graficos/" + nombreGrafico, 400);
     }
 
-    @Override
-    public byte[] generarPdfPrueba() {
-        try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-            Document document = new Document();
-            PdfWriter writer = PdfWriter.getInstance(document, baos);
-            document.open();
-
-            float pageHeight = document.getPageSize().getHeight();
-            float pageWidth = document.getPageSize().getWidth();
-
-            try {
-                InputStream logoIzqStream = getLogoStream("images/LogoChilpancingo.png");
-                if (logoIzqStream != null) {
-                    byte[] logoBytes = logoIzqStream.readAllBytes();
-                    Image imgIzq = Image.getInstance(logoBytes);
-                    imgIzq.scaleToFit(125, 75);
-                    imgIzq.setAbsolutePosition(20, pageHeight - 80);
-                    document.add(imgIzq);
-                }
-
-                InputStream logoDerStream = getLogoStream("images/LogoRenace.png");
-                if (logoDerStream != null) {
-                    byte[] logoBytes = logoDerStream.readAllBytes();
-                    Image imgDer = Image.getInstance(logoBytes);
-                    imgDer.scaleToFit(125, 75);
-                    imgDer.setAbsolutePosition(pageWidth - 120, pageHeight - 80);
-                    document.add(imgDer);
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-
-            document.add(new Paragraph("\n\n\n"));
-
-            document.add(new Paragraph("PDF de Prueba - Diseño de Layout", tituloFont));
-            document.add(new Paragraph("Generado el: " + LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")), textoFont));
-            document.add(new Paragraph("\n"));
-
-            document.add(new Paragraph("Este es un PDF de prueba para verificar el diseño y layout.", textoFont));
-            document.add(new Paragraph("Los logos deberían aparecer en la parte superior.", textoFont));
-            document.add(new Paragraph("Este texto debería comenzar después de los logos.", textoFont));
-            document.add(new Paragraph("\n"));
-
-            document.add(new Paragraph("Datos de ejemplo:", subtituloFont));
-            document.add(new Paragraph("• Colonia Centro: 25 incidencias", textoFont));
-            document.add(new Paragraph("• Colonia Norte: 18 incidencias", textoFont));
-            document.add(new Paragraph("• Colonia Sur: 32 incidencias", textoFont));
-            document.add(new Paragraph("• Colonia Este: 12 incidencias", textoFont));
-            document.add(new Paragraph("• Colonia Oeste: 8 incidencias", textoFont));
-
-            document.add(new Paragraph("\n"));
-            document.add(new Paragraph("Total de incidencias de ejemplo: 95", cursivaFont));
-
-            document.close();
-            return baos.toByteArray();
-        } catch (Exception e) {
-            throw new RuntimeException("Error generando PDF de prueba", e);
+    private void imprimirLista(Document document, String titulo, List<ReporteItemDto> datos) throws Exception {
+        document.add(new Paragraph(titulo, subtituloFont));
+        for (ReporteItemDto item : datos) {
+            document.add(new Paragraph(" • " + item.getNombre() + " : " + item.getCantidad(), textoFont));
         }
     }
 }
