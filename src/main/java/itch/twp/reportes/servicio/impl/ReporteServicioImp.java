@@ -48,7 +48,7 @@ public class ReporteServicioImp implements ReporteServicio {
     // 1. CONFIGURACIÓN DEL ENCABEZADO (LAYOUT)
     // ==========================================
     
-    private Document iniciarDocumento(ByteArrayOutputStream baos, String tituloReporte) throws Exception {
+    private Document iniciarDocumento(ByteArrayOutputStream baos, String tituloReporte, String inicio, String fin) throws Exception {
         Document document = new Document(PageSize.A4, 36, 36, 36, 36);
         PdfWriter.getInstance(document, baos);
         document.open();
@@ -83,6 +83,15 @@ public class ReporteServicioImp implements ReporteServicio {
         pTitulo.setAlignment(Element.ALIGN_CENTER);
         document.add(pTitulo);
         
+        if (inicio != null && !inicio.isEmpty()) {
+            String periodo = (fin != null && !fin.isEmpty() && !inicio.equals(fin)) 
+                             ? "Periodo: " + inicio + " al " + fin 
+                             : "Fecha específica: " + inicio;
+            Paragraph pPeriodo = new Paragraph(periodo, boldFont);
+            pPeriodo.setAlignment(Element.ALIGN_CENTER);
+            document.add(pPeriodo);
+        }
+        
         Paragraph pFecha = new Paragraph("Generado el: " + LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")), cursivaFont);
         pFecha.setAlignment(Element.ALIGN_RIGHT);
         document.add(pFecha);
@@ -96,11 +105,12 @@ public class ReporteServicioImp implements ReporteServicio {
     // ==========================================
 
     @Override
-    public byte[] generarReporteColoniasPdf() {
-        List<IncidenciaDTO> todas = obtenerIncidenciasSafely();
+    public byte[] generarReporteColoniasPdf(String inicio, String fin) {
+        List<IncidenciaDTO> todas = obtenerIncidencias(inicio, fin);
         
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-            Document document = iniciarDocumento(baos, "Análisis de Situación por Colonia");
+            // SE AÑADIÓ inicio y fin
+            Document document = iniciarDocumento(baos, "Análisis de Situación por Colonia", inicio, fin);
             document.add(new Paragraph("Distribución geográfica de reportes ciudadanos y su estado de atención.\n", textoFont));
             
             insertarGrafico(document, "colonias.png");
@@ -111,7 +121,6 @@ public class ReporteServicioImp implements ReporteServicio {
                 for (IncidenciaDTO i : todas) {
                     String colonia = (i.getColonia() != null) ? i.getColonia() : (i.getLocalidad() != null ? i.getLocalidad() : "Ubicación no especificada");
                     
-                    // Se usa getTitulo y getNombreTipo en lugar de getNombre y getNombrePrioridad
                     String asunto = (i.getTitulo() != null) ? i.getTitulo() : i.getNombreTipo();
                     
                     agregarBloqueDialogo(document, 
@@ -129,11 +138,12 @@ public class ReporteServicioImp implements ReporteServicio {
     }
 
     @Override
-    public byte[] generarReporteTiposIncidenciaPdf() {
-        List<IncidenciaDTO> todas = obtenerIncidenciasSafely();
+    public byte[] generarReporteTiposIncidenciaPdf(String inicio, String fin) {
+        List<IncidenciaDTO> todas = obtenerIncidencias(inicio, fin);
         
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-            Document document = iniciarDocumento(baos, "Clasificación de Reportes Ciudadanos");
+            // SE AÑADIÓ inicio y fin
+            Document document = iniciarDocumento(baos, "Clasificación de Reportes Ciudadanos", inicio, fin);
             document.add(new Paragraph("Resumen Narrativo de Tipos de Incidencias:\n", subtituloFont));
             
             insertarGrafico(document, "tipos.png");
@@ -156,11 +166,12 @@ public class ReporteServicioImp implements ReporteServicio {
     }
 
     @Override
-    public byte[] generarReporteEstatusYPromedioPdf() {
-        List<IncidenciaDTO> todas = obtenerIncidenciasSafely();
+    public byte[] generarReporteEstatusYPromedioPdf(String inicio, String fin) {
+        List<IncidenciaDTO> todas = obtenerIncidencias(inicio, fin);
         
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-            Document document = iniciarDocumento(baos, "Reporte de Eficiencia y Estatus");
+            // SE AÑADIÓ inicio y fin
+            Document document = iniciarDocumento(baos, "Reporte de Eficiencia y Estatus", inicio, fin);
             document.add(new Paragraph("Estado actual del seguimiento de atención ciudadana.\n", textoFont));
             
             insertarGrafico(document, "estatus.png");
@@ -188,11 +199,12 @@ public class ReporteServicioImp implements ReporteServicio {
     }
     
     @Override
-    public byte[] generarReporteDepartamentosPdf() {
-        List<IncidenciaDTO> todas = obtenerIncidenciasSafely();
+    public byte[] generarReporteDepartamentosPdf(String inicio, String fin) {
+        List<IncidenciaDTO> todas = obtenerIncidencias(inicio, fin);
         
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-            Document document = iniciarDocumento(baos, "Distribución por Departamento");
+            // SE AÑADIÓ inicio y fin
+            Document document = iniciarDocumento(baos, "Distribución por Departamento", inicio, fin);
             document.add(new Paragraph("Carga de trabajo y canalización institucional.\n", textoFont));
             
             todas.stream()
@@ -215,11 +227,12 @@ public class ReporteServicioImp implements ReporteServicio {
     }
     
     @Override
-    public byte[] generarReportePersonalPdf() {
-        List<IncidenciaDTO> todas = obtenerIncidenciasSafely();
+    public byte[] generarReportePersonalPdf(String inicio, String fin) {
+        List<IncidenciaDTO> todas = obtenerIncidencias(inicio, fin);
         
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-            Document document = iniciarDocumento(baos, "Desempeño del Personal Operativo");
+            // SE AÑADIÓ inicio y fin
+            Document document = iniciarDocumento(baos, "Desempeño del Personal Operativo", inicio, fin);
             document.add(new Paragraph("Registro de atención brindada por el personal del Ayuntamiento.\n", textoFont));
             
             todas.stream()
@@ -242,11 +255,12 @@ public class ReporteServicioImp implements ReporteServicio {
     }
     
     @Override
-    public byte[] generarReporteUsuariosPdf() {
-        List<IncidenciaDTO> todas = obtenerIncidenciasSafely();
+    public byte[] generarReporteUsuariosPdf(String inicio, String fin) {
+        List<IncidenciaDTO> todas = obtenerIncidencias(inicio, fin);
         
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-            Document document = iniciarDocumento(baos, "Participación Ciudadana");
+            // SE AÑADIÓ inicio y fin
+            Document document = iniciarDocumento(baos, "Participación Ciudadana", inicio, fin);
             document.add(new Paragraph("Métricas de ciudadanos que utilizan activamente la plataforma.\n", textoFont));
             
             todas.stream()
@@ -269,14 +283,15 @@ public class ReporteServicioImp implements ReporteServicio {
     }
     
     @Override
-    public byte[] generarReporteClimaPdf() {
-        List<IncidenciaDTO> todas = obtenerIncidenciasSafely();
+    public byte[] generarReporteClimaPdf(String inicio, String fin) {
+        List<IncidenciaDTO> todas = obtenerIncidencias(inicio, fin);
         
         long conAlerta = todas.stream().filter(i -> Boolean.TRUE.equals(i.getClimaAlerta())).count();
         long sinAlerta = todas.stream().filter(i -> i.getClimaAlerta() == null || !i.getClimaAlerta()).count();
 
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-            Document document = iniciarDocumento(baos, "Impacto de Condiciones Climáticas");
+            // SE AÑADIÓ inicio y fin
+            Document document = iniciarDocumento(baos, "Impacto de Condiciones Climáticas", inicio, fin);
             document.add(new Paragraph("Análisis de correlación entre reportes y alertas meteorológicas en la ciudad.\n", textoFont));
             
             agregarBloqueDialogo(document, 
@@ -299,7 +314,8 @@ public class ReporteServicioImp implements ReporteServicio {
     @Override
     public byte[] generarPdfPrueba() {
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-            Document document = iniciarDocumento(baos, "Documento de Prueba y Calibración");
+            // SE AÑADIÓ null, null porque es de prueba
+            Document document = iniciarDocumento(baos, "Documento de Prueba y Calibración", null, null);
             
             document.add(new Paragraph("Este es un PDF de calibración para verificar que el diseño y el layout institucional funcionen correctamente en el servidor.\n", textoFont));
             
@@ -377,11 +393,21 @@ public class ReporteServicioImp implements ReporteServicio {
         return null;
     }
 
-    private List<IncidenciaDTO> obtenerIncidenciasSafely() {
+    private List<IncidenciaDTO> obtenerIncidencias(String inicio, String fin) {
         try {
+            // Si mandan rango (inicio y fin)
+            if (inicio != null && !inicio.isEmpty() && fin != null && !fin.isEmpty()) {
+                return incidenciaClient.buscarPorFecha(inicio, fin);
+            } 
+            // Si mandan FECHA EXACTA (solo inicio)
+            else if (inicio != null && !inicio.isEmpty()) {
+                return incidenciaClient.buscarPorFecha(inicio, inicio);
+            }
+            // Si no mandan nada, traemos todo el histórico
             return incidenciaClient.listarParaEstadisticas();
         } catch (Exception e) {
-            System.err.println("Advertencia: No se pudieron obtener los datos del microservicio de incidencias.");
+            System.err.println("Advertencia: Falló la conexión con el MS de Incidencias.");
+            e.printStackTrace();
             return Collections.emptyList();
         }
     }
@@ -410,6 +436,77 @@ public class ReporteServicioImp implements ReporteServicio {
         document.add(new Paragraph(titulo, subtituloFont));
         for (ReporteItemDto item : datos) {
             document.add(new Paragraph(" • " + item.getNombre() + " : " + item.getCantidad(), textoFont));
+        }
+    }
+    
+    @Override
+    public byte[] generarReporteDetalladoIncidenciaPdf(Integer id) {
+        try {
+            IncidenciaDTO i = incidenciaClient.obtenerPorId(id);
+            try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+                // SE AÑADIÓ null, null porque es para un solo reporte
+                Document document = iniciarDocumento(baos, "Detalle Técnico de Incidencia #" + id, null, null);
+                
+                // Sección de Información General
+                document.add(new Paragraph("Información General", subtituloFont));
+                document.add(new Paragraph("Título: " + i.getTitulo(), textoFont));
+                document.add(new Paragraph("Tipo: " + i.getNombreTipo(), textoFont));
+                document.add(new Paragraph("Estado Actual: " + i.getNombreEstadoActual(), textoFont));
+                document.add(new Paragraph("Fecha de Reporte: " + i.getFechaReporte(), textoFont));
+                document.add(new Paragraph("\n"));
+
+                // Sección de Ubicación
+                document.add(new Paragraph("Ubicación del Incidente", subtituloFont));
+                document.add(new Paragraph("Calle: " + i.getCalle(), textoFont));
+                document.add(new Paragraph("Colonia: " + i.getColonia(), textoFont));
+                document.add(new Paragraph("Localidad: " + i.getLocalidad(), textoFont));
+                document.add(new Paragraph("\n"));
+
+                // Sección de Asignación
+                document.add(new Paragraph("Responsables y Seguimiento", subtituloFont));
+                document.add(new Paragraph("Departamento: " + i.getNombreDepartamento(), textoFont));
+                document.add(new Paragraph("Personal Asignado: " + i.getNombrePersonal(), textoFont));
+                document.add(new Paragraph("Usuario que Reportó: " + i.getNombreUsuario(), textoFont));
+                document.add(new Paragraph("\n"));
+
+                // Sección Climática
+                if (Boolean.TRUE.equals(i.getClimaAlerta())) {
+                    document.add(new Paragraph("Condiciones Climáticas Especiales", subtituloFont));
+                    document.add(new Paragraph("Alerta Activa: SÍ", textoFont));
+                    document.add(new Paragraph("Observaciones: " + i.getObservacionesClima(), textoFont));
+                }
+
+                document.close();
+                return baos.toByteArray();
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Error al generar reporte detallado", e);
+        }
+    }
+    
+    @Override
+    public byte[] generarReportePorPeriodoPdf(String inicio, String fin) {
+        try {
+            List<IncidenciaDTO> filtradas = incidenciaClient.buscarPorFecha(inicio, fin);
+            try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+                // SE AÑADIÓ inicio y fin para que muestre el rango
+                Document document = iniciarDocumento(baos, "Reporte de Incidencias General", inicio, fin);
+                
+                if (filtradas.isEmpty()) {
+                    document.add(new Paragraph("No se encontraron incidencias en el periodo seleccionado.", textoFont));
+                } else {
+                    for (IncidenciaDTO i : filtradas) {
+                        agregarBloqueDialogo(document, 
+                            "Reporte #" + i.getId() + " - " + i.getColonia(),
+                            i.getTitulo(),
+                            "Estatus: " + i.getNombreEstadoActual() + ". Atendido por: " + i.getNombreDepartamento());
+                    }
+                }
+                document.close();
+                return baos.toByteArray();
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Error al generar reporte por periodo", e);
         }
     }
 }

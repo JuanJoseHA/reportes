@@ -16,10 +16,23 @@ public class IncidenciaClientFallback implements FallbackFactory<IncidenciaClien
     @Override
     public IncidenciaClient create(Throwable cause) {
         log.error("Error al conectar con el servicio de incidencias: {}", cause.getMessage());
+        
         return new IncidenciaClient() {
             @Override
             public List<IncidenciaDTO> listarParaEstadisticas() {
-                log.warn("Returning empty list due to fallback - servicio incidencias no disponible");
+                log.warn("Fallback: Servicio de incidencias no disponible para estadísticas.");
+                return Collections.emptyList();
+            }
+
+            @Override
+            public IncidenciaDTO obtenerPorId(Integer id) {
+                log.warn("Fallback: No se pudo obtener la incidencia {} - servicio no disponible.", id);
+                return null; // O puedes retornar un DTO con un mensaje de error
+            }
+
+            @Override
+            public List<IncidenciaDTO> buscarPorFecha(String inicio, String fin) {
+                log.warn("Fallback: No se pueden buscar fechas ({} a {}) - servicio no disponible.", inicio, fin);
                 return Collections.emptyList();
             }
         };
