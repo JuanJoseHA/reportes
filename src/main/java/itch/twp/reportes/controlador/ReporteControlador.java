@@ -1,5 +1,9 @@
 package itch.twp.reportes.controlador;
 
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -11,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import itch.twp.reportes.dto.IncidenciaDTO;
 import itch.twp.reportes.servicio.ReporteServicio;
 import lombok.AllArgsConstructor;
 
@@ -117,5 +122,12 @@ public class ReporteControlador {
         headers.setContentType(MediaType.APPLICATION_PDF);
         headers.add(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=" + nombreArchivo);
         return new ResponseEntity<>(pdfBytes, headers, HttpStatus.OK);
+    }
+    
+ // itch/twp/reportes/controlador/ReporteControlador.java
+    @GetMapping("/estadisticas-dashboard-full") // Esta es la ruta que da el 404
+    public ResponseEntity<List<IncidenciaDTO>> obtenerTodasParaDashboard() {
+        // Retorna la lista completa de incidencias para que el Front las procese
+        return ResponseEntity.ok(reporteServicio.obtenerIncidencias(null, null));
     }
 }
